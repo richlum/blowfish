@@ -5,6 +5,10 @@ import sun.misc.BASE64Encoder;
 import java.security.NoSuchAlgorithmException;
 import java.security.InvalidKeyException;
 import javax.crypto.IllegalBlockSizeException;
+import java.nio.file.Files;
+import java.io.File;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 
 public class BlowFish {
 
@@ -15,6 +19,9 @@ public class BlowFish {
 		String ciphertxt = encrypt( payload, pw);
 		String cleartxt = decrypt(ciphertxt, pw);
 		System.out.println("ciphertxt= " + ciphertxt);
+		if (writeFile(payload + ".enc", ciphertxt, true)){
+			System.out.println("wrote to file " + payload + ".enc");
+		}
 		System.out.println("cleartxt= " + cleartxt);
 	} 
 
@@ -57,6 +64,21 @@ public class BlowFish {
 			System.err.println(e.getMessage());
 		}
 		return new String(decoded);
+	}
+
+	public static boolean writeFile(String fn, String contents, boolean overwrite){
+		File targ = new File(fn);
+		if (!targ.exists()||overwrite){
+			Path file = targ.toPath();
+			try {
+				Files.write(file, contents.getBytes(), StandardOpenOption.TRUNCATE_EXISTING);	
+			} catch (Exception e) {
+				System.err.println("file io error: " + e.getMessage());
+				return false;
+			}
+			return true;
+		}
+		return false;
 	}
 
 }
