@@ -1,0 +1,72 @@
+
+Default BlowFish seems to be ECB mode (Electronic Code Page = 
+simple concatenation of blocks vs CBC which is cipher block
+chain).   BlowFish uses a 64 bit block so we can prove this by
+encoding a repeating 8char pattern as the plaintext.  ECB
+will generate a repeating encoded binary pattern.  Note that
+the base64 obfuscates this repeating pattern because of the 6 bit 
+representation of 8 bit char offsets block alignments.
+
+java BlowFish "abcdefghabcdefghabcdefgh" 0123456789012345
+
+produces
+
+ciphertxt= MUKVXSDLPPwxQpVdIMs8/DFClV0gyzz8X+zTp4AWlns=
+cleartxt= abcdefghabcdefghabcdefgh
+
+But if base64 decode the ciphertext and look at the binary 
+values using command
+
+echo  MUKVXSDLPPwxQpVdIMs8/DFClV0gyzz8X+zTp4AWlns= | openssl enc  -base64 -d -out output.ecb
+
+then view the file ecbout in binary mode (:!xxd),  (contents captured in 
+file output.bin) looks like
+
+00000000: 3142 955d 20cb 3cfc 3142 955d 20cb 3cfc  1B.] .<.1B.] .<.
+00000010: 3142 955d 20cb 3cfc 5fec d3a7 8016 967b  1B.] .<._......{
+00000020: 0a                                       .
+
+Notice the repeating pattern every 64 bits.  Since Blowfish is a block
+cipher their is some padding happening.....
+
+While ecb is less secure, it is easier to use.   cbc essentially takes
+the output of encrypting one block as input to use for encoding of the 
+next block.  In this way, repeating patterns are hidden underneath the 
+chaining of encrypted material of a given block with the next block.
+This also has the nice impact of a single earlier bit changing all the 
+subseqent encoding.   However, this mode requires that we provide an
+initialization vector as input the enrypting the first block since there
+is no preceding block.  This requires that during decoding we have the 
+same initialization vector in addition to the password.   
+
+Apparently modes can be specified with something like
+
+Cipher cipher = Cipher.getInstance("Blowfish/CBC/PKCS5Padding"); 
+Cipher cipher = Cipher.getInstance("Blowfish/EBC/NoPadding"); 
+
+I havent located the documentation that explains this but it maybe
+a generic option specfication across different ciphers
+
+http://docs.oracle.com/javase/7/docs/technotes/guides/security/StandardNames.html#alg
+
+shows examples such as
+
+AES/CBC/NoPadding (128)
+AES/CBC/PKCS5Padding (128)
+AES/ECB/NoPadding (128)
+AES/ECB/PKCS5Padding (128)
+DES/CBC/NoPadding (56)
+DES/CBC/PKCS5Padding (56)
+DES/ECB/NoPadding (56)
+DES/ECB/PKCS5Padding (56)
+
+
+
+Another point to note is that if we use a key size of more than 16 chars,
+java may throw an exception indication illegal key size.   This is a
+product of the java jvm having policy of weak encryption.  To get 
+long key support, you have to install the "Java Cryptography Extension (JCE)
+Unlimited Strength Jurisdiction Policy Files.
+
+
+

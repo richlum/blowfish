@@ -1,0 +1,1 @@
+openssl enc -blowfish -in testfile -e -pass pass:1234 -a | openssl enc -blowfish -d -pass pass:1234 -a
