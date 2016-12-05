@@ -61,6 +61,12 @@ public class BlowFish {
 		}
 	} 
 
+	/* since we are encrypting a random char docusign password, we dont
+		have to worry about repeating patterns within the payload so
+		we can use ECB and avoid having to specify initialization vectors.
+		suspect this and padding are why openssl blowfish encryption does
+		not appear to interwork with java based 
+	*/
 	public static String encrypt(String txt, String pw, String salt){
 		byte[] keyData = deriveKey(pw, salt.getBytes(), KEYLENGTH) ;
 		SecretKeySpec secretKeySpec = new SecretKeySpec(keyData, "Blowfish");
