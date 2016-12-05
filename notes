@@ -69,4 +69,28 @@ long key support, you have to install the "Java Cryptography Extension (JCE)
 Unlimited Strength Jurisdiction Policy Files.
 
 
+On using CBC - cipher block chaining, there is a requirement for an 
+initialization vector.  This initialization vector is to protect 
+from recoginizing repeating plaintext having repeating cipher text.
+It has to be unique, unpredictable but both the sender and receiver must
+use the same value to stay in sync.
 
+It appears that it is bad practice to directly use the user supplied
+password as keying material and that it should be used as input to 
+a key derivation function to generate the actuall keying material. This
+avoids the problem of predictable passwords and pw length problems.
+Java SecretKeyFactory is bidirectional keyobj - keymaterial
+
+
+salt the password - seems to have the same kinds of issues as 
+initialization vector - prevent same password from generating 
+same ciphertext.  
+
+Not well understood is how initialization vector and salt is shared
+between encrypter and decrypter or if both can be derived from 
+the passwork key derivation function.
+
+encrypt message||MAC.  attempt to decrypt - success verified by mac.
+
+
+  
