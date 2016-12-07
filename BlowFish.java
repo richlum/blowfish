@@ -18,7 +18,8 @@ import java.io.IOException;
 import java.util.List;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
-
+import java.security.SecureRandom;
+import javax.crypto.spec.IvParameterSpec;
 
 public class BlowFish {
 
@@ -28,6 +29,8 @@ public class BlowFish {
 		String fn = null;
 		String pw = null;
 		String salt = null;
+		byte[] iv = null;
+		StringBuilder ivstr = new StringBuilder();
 		if (args.length<2){
 			System.out.println("usage: BlowFish filename pass [salt]");
 			System.out.println("       BlowFish DECRYPTFILE fn pass salt");
@@ -45,6 +48,7 @@ public class BlowFish {
 		} else {
 			fn = args[0];
 			pw = args[1];
+		
 			salt = "default";
 			if (args.length>2)
 				salt = args[2];
@@ -56,8 +60,11 @@ public class BlowFish {
 				System.err.println("fileio error " + e.getMessage());
 			}	
 	
-			String ciphertxt = encrypt( new String(payload), pw, salt);
-			String cleartxt = decrypt(ciphertxt, pw, salt);
+			String ciphertxt = encrypt( new String(payload), pw, salt, ivstr);
+			System.out.println("iv:" + ivstr );
+			System.out.println("salt:" + salt );
+			
+			String cleartxt = decrypt(ciphertxt, pw, salt, ivstr.toString());
 			System.out.println("ciphertxt= " + ciphertxt);
 			if (writeFile(fn + ".enc", ciphertxt, true)){
 				System.out.println("wrote to file " + fn + ".enc");
@@ -65,6 +72,7 @@ public class BlowFish {
 						
 			ArrayList<String> coded = new ArrayList<String>();
 			coded.add(salt);
+			coded.add(ivstr.toString());
 			coded.add(ciphertxt);
 			try{
 				toFile(fn + "2.enc", coded);
@@ -78,6 +86,15 @@ public class BlowFish {
 			System.out.println("cleartxt= " + cleartxt);
 		}
 	} 
+	public static StringBuilder toHexStr(byte[] bytes){
+		StringBuilder sb = new StringBuilder();
+		for (int i=0;i<bytes.length;i++){
+			System.out.println(i + " " + String.format("%02X",bytes[i]) + " " + bytes[i]);
+			sb.append(String.format("%02X",bytes[i]));
+		}
+		return sb;
+
+	}
 
 	/* since we are encrypting a random char docusign password, we dont
 		have to worry about repeating patterns within the payload so
@@ -85,14 +102,21 @@ public class BlowFish {
 		suspect this and padding are why openssl blowfish encryption does
 		not appear to interwork with java based 
 	*/
-	public static String encrypt(String txt, String pw, String salt){
+	public static String encrypt(String txt, String pw, String salt, StringBuilder ivstr){
 		byte[] keyData = deriveKey(pw, salt.getBytes(), KEYLENGTH) ;
 		SecretKeySpec secretKeySpec = new SecretKeySpec(keyData, "Blowfish");
 		byte[] ciphertext = null;
 		try{
-			Cipher cipher = Cipher.getInstance("Blowfish/ECB/PKCS5Padding");
-			cipher.init(Cipher.ENCRYPT_MODE, secretKeySpec);
+			Cipher cipher = Cipher.getInstance("Blowfish/CBC/PKCS5Padding");
+			SecureRandom srnd = new SecureRandom();
+		//	byte[] iv = new byte[cipher.getBlockSize()];
+		//	rnd.nextBytes(iv);
+
+			cipher.init(Cipher.ENCRYPT_MODE, secretKeySpec,srnd);
 			ciphertext = cipher.doFinal(txt.getBytes());
+			ivstr.append(new BASE64Encoder().encode(cipher.getIV()));
+
+			//System.out.println("iv:" + toHexStr(iv) );
 		} catch ( NoSuchAlgorithmException noSuch ) {
 			System.err.println("NoSuchAlgorithmException " + noSuch.getMessage());
 		} catch ( InvalidKeyException invKey ) {
@@ -102,31 +126,44 @@ public class BlowFish {
 		} catch (Exception e) {
 			System.err.println(e.getMessage());
 		}
-
 		return (new BASE64Encoder().encode(ciphertext));
 	}
 
 	public static void decryptFile(String fn, String pw, String salt){
-		if (salt.length()==0){
-			salt = "default";
-		}
 		byte[] ciphertext = null;
+		String ciphertextstr = null;
+		List<String> lines = null;
+		String ivstr = null;
 		try{
-			ciphertext = Files.readAllBytes(Paths.get(fn));
+			lines = Files.readAllLines(Paths.get(fn),Charset.defaultCharset());
+			if (lines.size()==3){
+				salt = lines.get(0);
+				ivstr = lines.get(1);
+				ciphertextstr = lines.get(2);
+			} else {
+				System.err.println("File must have 3 lines: salt, iv, ciphertext");
+				return;
+			}
+			
 		} catch (Exception e) {
 			System.err.println("fileio error " + e.getMessage());
-		}	
-		System.out.println( decrypt(new String(ciphertext), pw, salt));
+		}
+		System.out.println( "salt " + salt);
+		System.out.println( "ivstr " + ivstr);
+		System.out.println( "ciphertextstr " + ciphertextstr);
+	
+		System.out.println( decrypt(ciphertextstr, pw, salt, ivstr));
 
 	}
 
-	public static String decrypt(String ciphertxt, String pw, String salt) {
+	public static String decrypt(String ciphertxt, String pw, String salt, String ivstr) {
 		byte[] keyData = deriveKey(pw, salt.getBytes(), KEYLENGTH) ;
 		SecretKeySpec secretKeySpec = new SecretKeySpec(keyData,"Blowfish");
 		byte[] decoded = null;
 		try{
-			Cipher cipher = Cipher.getInstance("Blowfish");
-			cipher.init(Cipher.DECRYPT_MODE, secretKeySpec);
+			byte[] iv = new BASE64Decoder().decodeBuffer(ivstr);
+			Cipher cipher = Cipher.getInstance("Blowfish/CBC/PKCS5Padding");
+			cipher.init(Cipher.DECRYPT_MODE, secretKeySpec,new IvParameterSpec(iv));
 			decoded = cipher.doFinal(new BASE64Decoder().decodeBuffer(ciphertxt));
 		} catch ( NoSuchAlgorithmException noSuch ) {
 			System.err.println("NoSuchAlgorithmException " + noSuch.getMessage());
@@ -137,7 +174,26 @@ public class BlowFish {
 		} catch (Exception e) {
 			System.err.println(e.getMessage());
 		}
-		return new String(decoded);
+		if (decoded!= null)
+			return new String(decoded);
+		return "";
+	}
+
+	/* string of hex values to convert to byte array */
+	public static byte[] toByteArray(String s) {
+		
+		byte[] result = s.getBytes();
+		/*
+		new byte[s.length()*2];
+		for (int i=0;i<s.length();i++) {
+			result[i] = (byte) s.charAt(i)>>>4;
+			result[i] = (byte) s.charAt(i);
+		} */
+
+		for (int i=0;i<result.length;i++){
+			System.out.println(i + " " + result[i]);
+		}
+		return result;
 	}
 
 	public static boolean writeFile(String fn, String contents, boolean overwrite){
@@ -214,10 +270,15 @@ public class BlowFish {
 			return null;
 		}
 		//byte[] keyData = deriveKey(pw, lines.get(0).getBytes(),  KEYLENGTH) ;
-				
-		String plaintext = decrypt( lines.get(1), // ciphertxt, 
+		
+		System.out.println("salt: " + lines.get(0));
+		System.out.println("iv: " + lines.get(1));
+		System.out.println("ct: " + lines.get(2));
+		
+		String plaintext = decrypt( lines.get(2), // ciphertxt, 
 			pw, 
-			lines.get(0)); // salt
+			lines.get(0),
+			lines.get(1)); 
 		return plaintext;
 	}
 }
