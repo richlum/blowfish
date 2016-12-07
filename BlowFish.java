@@ -15,6 +15,10 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.Paths;
 import java.io.IOException;
+import java.util.List;
+import java.nio.charset.Charset;
+import java.util.ArrayList;
+
 
 public class BlowFish {
 
@@ -36,7 +40,8 @@ public class BlowFish {
 			if (args.length==4)
 				salt = args[3];
 
-			decryptFile(fn,  pw,  salt);
+			//decryptFile(fn,  pw,  salt);
+			System.out.println(decryptFile(fn,pw));
 		} else {
 			fn = args[0];
 			pw = args[1];
@@ -56,6 +61,19 @@ public class BlowFish {
 			System.out.println("ciphertxt= " + ciphertxt);
 			if (writeFile(fn + ".enc", ciphertxt, true)){
 				System.out.println("wrote to file " + fn + ".enc");
+			}
+						
+			ArrayList<String> coded = new ArrayList<String>();
+			coded.add(salt);
+			coded.add(ciphertxt);
+			try{
+				toFile(fn + "2.enc", coded);
+			} catch (IOException ioe){
+				System.err.println("Input Output Exception: " +
+					ioe.getMessage());
+			} catch (Exception e) {
+				System.err.println("Error Writing cipher file " +
+					e.getMessage());
 			}
 			System.out.println("cleartxt= " + cleartxt);
 		}
@@ -163,7 +181,44 @@ public class BlowFish {
 		return key.getEncoded();
 	}
 
+	public static List<String> readFile(String fn) throws IOException{
+		return Files.readAllLines(Paths.get(fn),Charset.forName("UTF-8"));
+	}
+	
+	public static void toFile(String fn, List<String> lines) throws IOException {
+		Files.write(Paths.get(fn),
+			lines,Charset.forName("UTF-8"), StandardOpenOption.CREATE);
+	}
 
-
+	/*
+		File format
+		line 1 salt - prevents reuse of dictionary attacks for pw reuse
+		line 2 initization vector - 1st block encoding in cbc - hide repeated plaintext
+		line 3 ciphertext - encrypted payload.
+	*/
+	public static String decryptFile(String fn, String pw){
+		List<String> lines = null;
+		try{
+			lines =  readFile(fn);
+		} catch (IOException ioe) {
+			System.err.println("Decrypting File Error: " +
+				ioe.getMessage());
+			return null;
+		} catch (Exception e) {
+			System.err.println("Decrypting File Error: " +
+				e.getMessage());
+			return null;
+		}	
+		if (lines.size() < 2){
+			System.err.println("Incorrect Encrypted File format");
+			return null;
+		}
+		//byte[] keyData = deriveKey(pw, lines.get(0).getBytes(),  KEYLENGTH) ;
+				
+		String plaintext = decrypt( lines.get(1), // ciphertxt, 
+			pw, 
+			lines.get(0)); // salt
+		return plaintext;
+	}
 }
 
