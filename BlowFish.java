@@ -20,6 +20,7 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.security.SecureRandom;
 import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.BadPaddingException;
 
 public class BlowFish {
 
@@ -47,6 +48,8 @@ public class BlowFish {
 		} else {
 			fn = args[0];
 			pw = args[1];
+			if (args.length >2)
+				salt.append(args[2]);
 		
 			byte[] payload = null;
 			try{
@@ -178,8 +181,11 @@ public class BlowFish {
 			System.err.println("Exception-InvalidKey during decr" + invKey.getMessage());
 		} catch ( IllegalBlockSizeException blockSz){
 			System.err.println("Exception-IllegalBlockSize during decr " + blockSz.getMessage());
+		} catch ( BadPaddingException pe ){
+			System.err.println("Exception-Bad Padding: Probably wrong password : " + pe.getMessage());
 		} catch (Exception e) {
-			System.err.println("Exception during decr " +e.getMessage());
+			System.err.println("Exception during decr " + e.getMessage() + " " +
+				e.getClass().getSimpleName());
 		}
 		if (decoded!= null)
 			return new String(decoded);
