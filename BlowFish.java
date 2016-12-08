@@ -52,33 +52,34 @@ public class BlowFish {
 			try{
 				payload = Files.readAllBytes(Paths.get(fn));
 			} catch (Exception e) {
-				System.err.println("fileio error " + e.getMessage());
+				System.err.println("Exception-fileio: " + e.getMessage());
 			}	
 	
 			String ciphertxt = encrypt( new String(payload), pw, salt, ivstr);
-			System.out.println("iv:" + ivstr );
-			System.out.println("salt:" + salt );
+			System.out.println("## iv:" + ivstr );
+			System.out.println("## salt:" + salt );
 			
 			String cleartxt = decrypt(ciphertxt, pw, salt, ivstr.toString());
-			System.out.println("ciphertxt= " + ciphertxt);
+			System.out.println("## ciphertxt= " + ciphertxt);
+			/*
 			if (writeFile(fn + ".enc", ciphertxt, true)){
 				System.out.println("wrote to file " + fn + ".enc");
 			}
-						
+			*/			
 			ArrayList<String> coded = new ArrayList<String>();
 			coded.add(salt.toString());
 			coded.add(ivstr.toString());
 			coded.add(ciphertxt);
 			try{
-				toFile(fn + "2.enc", coded);
+				toFile(fn + ".enc", coded);
 			} catch (IOException ioe){
-				System.err.println("Input Output Exception: " +
+				System.err.println("Exception-IO during encr output: " +
 					ioe.getMessage());
 			} catch (Exception e) {
-				System.err.println("Error Writing cipher file " +
+				System.err.println("Exception-Writing cipher file " +
 					e.getMessage());
 			}
-			System.out.println("cleartxt= " + cleartxt);
+			System.out.println("## cleartxt= " + cleartxt);
 		}
 	} 
 	public static StringBuilder toHexStr(byte[] bytes){
@@ -101,9 +102,9 @@ public class BlowFish {
 		SecureRandom srnd = new SecureRandom();
 		if (salt.length() == 0){
 			salt.append(base64Encode(srnd.generateSeed(16)));
-			System.out.println("setting salt to " + salt);
+			System.out.println("## setting salt to " + salt);
 		} else {
-			System.out.println("Salt given: " + salt);
+			System.out.println("## Salt given: " + salt);
 		}
 		byte[] keyData = deriveKey(pw, salt.toString().getBytes(), KEYLENGTH) ;
 		SecretKeySpec secretKeySpec = new SecretKeySpec(keyData, "Blowfish");
@@ -120,13 +121,13 @@ public class BlowFish {
 
 			//System.out.println("iv:" + toHexStr(iv) );
 		} catch ( NoSuchAlgorithmException noSuch ) {
-			System.err.println("NoSuchAlgorithmException " + noSuch.getMessage());
+			System.err.println("Exception-NoSuchAlg during encr " + noSuch.getMessage());
 		} catch ( InvalidKeyException invKey ) {
-			System.err.println("InvalidKey " + invKey.getMessage());
+			System.err.println("Exception-InvalidKey during encr" + invKey.getMessage());
 		} catch ( IllegalBlockSizeException blockSz){
-			System.err.println("IllegalBlockSize " + blockSz.getMessage());
+			System.err.println("Exception-IllegalBlockSize during encr" + blockSz.getMessage());
 		} catch (Exception e) {
-			System.err.println(e.getMessage());
+			System.err.println("Exception during encr" + e.getMessage());
 		}
 		//return (new BASE64Encoder().encode(ciphertext));
 		return (base64Encode(ciphertext));
@@ -172,13 +173,13 @@ public class BlowFish {
 			//decoded = cipher.doFinal(new BASE64Decoder().decodeBuffer(ciphertxt));
 			decoded = cipher.doFinal(base64Decode(ciphertxt));
 		} catch ( NoSuchAlgorithmException noSuch ) {
-			System.err.println("NoSuchAlgorithmException " + noSuch.getMessage());
+			System.err.println("Exception-NoSuchAlgorithmException during decr " + noSuch.getMessage());
 		} catch ( InvalidKeyException invKey ) {
-			System.err.println("InvalidKey " + invKey.getMessage());
+			System.err.println("Exception-InvalidKey during decr" + invKey.getMessage());
 		} catch ( IllegalBlockSizeException blockSz){
-			System.err.println("IllegalBlockSize " + blockSz.getMessage());
+			System.err.println("Exception-IllegalBlockSize during decr " + blockSz.getMessage());
 		} catch (Exception e) {
-			System.err.println(e.getMessage());
+			System.err.println("Exception during decr " +e.getMessage());
 		}
 		if (decoded!= null)
 			return new String(decoded);
@@ -207,22 +208,19 @@ public class BlowFish {
 		File targ = new File(fn);
 		if (!targ.exists()||overwrite){
 			Path file = targ.toPath();
-			System.out.println( " targ.exists() = " + targ.exists() +
-								" fn = " + fn  
-							);
 			try {
 				Files.write(file, contents.getBytes(), 
 					StandardOpenOption.CREATE);	
 			} catch(IOException ioe) {
-				System.err.println("io err" + ioe.getMessage());
+				System.err.println("Exception-io during write" + ioe.getMessage());
 				System.err.println(ioe.getCause());
 			} catch(UnsupportedOperationException uoe){
-				System.err.println("unsupported operation " + uoe.getMessage());
+				System.err.println("Exception-unsupported operation during write" + uoe.getMessage());
 
 			} catch(SecurityException sec){
-				System.err.println("security " + sec.getMessage());
+				System.err.println("Exception-security during write " + sec.getMessage());
 			} catch (Exception e) {
-				System.err.println("could not write to " + fn);
+				System.err.println("Exception-could not write to " + fn + " during write");
 				System.err.println("file io error: " + e.getMessage());
 				return false;
 			}
@@ -239,7 +237,7 @@ public class BlowFish {
 			KeySpec specs = new PBEKeySpec(password.toCharArray(), salt, 1024, keyLen);
 			key = kf.generateSecret(specs);
 		} catch (Exception e) {
-			System.err.println(" Error: " + e.getMessage());
+			System.err.println("Exception deriving key : " + e.getMessage());
 		}
 		return key.getEncoded();
 	}
@@ -264,23 +262,23 @@ public class BlowFish {
 		try{
 			lines =  readFile(fn);
 		} catch (IOException ioe) {
-			System.err.println("Decrypting File IO Error: " +
+			System.err.println("Exception-Decrypting File IO Error: " +
 				ioe.getMessage());
 			return null;
 		} catch (Exception e) {
-			System.err.println("Decrypting File Error: " +
+			System.err.println("Exception-Decrypting File Error: " +
 				e.getMessage());
 			return null;
 		}	
 		if (lines.size() < 2){
-			System.err.println("Incorrect Encrypted File format");
+			System.err.println("Exception-Incorrect Encrypted File format");
 			return null;
 		}
 		//byte[] keyData = deriveKey(pw, lines.get(0).getBytes(),  KEYLENGTH) ;
 		
-		System.out.println("salt: " + lines.get(0));
-		System.out.println("iv: " + lines.get(1));
-		System.out.println("ct: " + lines.get(2));
+		System.out.println("## salt: " + lines.get(0));
+		System.out.println("## iv: " + lines.get(1));
+		System.out.println("## ct: " + lines.get(2));
 		
 		String plaintext = decrypt( lines.get(2), // ciphertxt, 
 			pw, 
@@ -296,9 +294,9 @@ public class BlowFish {
 		try{
 			result = b64Decoder.decodeBuffer(payload);
 		} catch(IOException ioe) {
-			System.err.println("IO exception " + ioe.getMessage());
+			System.err.println("Exception-IO decoding " + ioe.getMessage());
 		} catch (Exception e) {
-			System.err.println("Exception " + e.getMessage());
+			System.err.println("Exception decoding " + e.getMessage());
 		}
 		return result;
 	}
