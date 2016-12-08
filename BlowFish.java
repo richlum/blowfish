@@ -54,6 +54,7 @@ public class BlowFish {
 			byte[] payload = null;
 			try{
 				payload = Files.readAllBytes(Paths.get(fn));
+				System.out.println("## payload in size = " + payload.length);
 			} catch (Exception e) {
 				System.err.println("Exception-fileio: " + e.getMessage());
 			}	
@@ -61,7 +62,7 @@ public class BlowFish {
 			String ciphertxt = encrypt( new String(payload), pw, salt, ivstr);
 			System.out.println("## iv:" + ivstr );
 			System.out.println("## salt:" + salt );
-			
+			System.out.println("## ciphertxt.length "  + ciphertxt.length());
 			String cleartxt = decrypt(ciphertxt, pw, salt, ivstr.toString());
 			System.out.println("## ciphertxt= " + ciphertxt);
 			/*
@@ -135,36 +136,10 @@ public class BlowFish {
 		//return (new BASE64Encoder().encode(ciphertext));
 		return (base64Encode(ciphertext));
 	}
-/*
-	public static void decryptFile(String fn, String pw, String salt){
-		byte[] ciphertext = null;
-		String ciphertextstr = null;
-		List<String> lines = null;
-		String ivstr = null;
-		try{
-			lines = Files.readAllLines(Paths.get(fn),Charset.defaultCharset());
-			if (lines.size()==3){
-				salt = lines.get(0);
-				ivstr = lines.get(1);
-				ciphertextstr = lines.get(2);
-			} else {
-				System.err.println("File must have 3 lines: salt, iv, ciphertext");
-				return;
-			}
-			
-		} catch (Exception e) {
-			System.err.println("fileio error " + e.getMessage());
-		}
-		System.out.println( "salt " + salt);
-		System.out.println( "ivstr " + ivstr);
-		System.out.println( "ciphertextstr " + ciphertextstr);
 	
-		System.out.println( decrypt(ciphertextstr, pw, salt, ivstr));
 
-	}
-*/
 	public static String decrypt(String ciphertxt, String pw, StringBuilder salt, String ivstr) {
-		
+		System.out.println("## ciphertxt.len = " + ciphertxt.length());
 		byte[] keyData = deriveKey(pw, salt.toString().getBytes(), KEYLENGTH) ;
 		SecretKeySpec secretKeySpec = new SecretKeySpec(keyData,"Blowfish");
 		byte[] decoded = null;
@@ -286,12 +261,23 @@ public class BlowFish {
 		System.out.println("## iv: " + lines.get(1));
 		System.out.println("## ct: " + lines.get(2));
 		
-		String plaintext = decrypt( lines.get(2), // ciphertxt, 
+		String plaintext = decrypt( strJoin(lines.subList(2,lines.size()),"\n"), // ciphertxt, 
 			pw, 
 			new StringBuilder(lines.get(0)),
 			lines.get(1)); 
 		return plaintext;
 	}
+
+	public static String strJoin(List<String> strings, String sep) {
+		StringBuilder sb = new StringBuilder();
+		for(int i=0;i<strings.size();i++){
+			if (i>0)
+				sb.append(sep);
+			sb.append(strings.get(i));
+		}
+		return sb.toString();
+	}
+
 	
 	public static byte[] base64Decode(String payload){
 		byte[] result = null;
