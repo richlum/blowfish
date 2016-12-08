@@ -24,24 +24,23 @@ import javax.crypto.spec.IvParameterSpec;
 public class BlowFish {
 
 	private static int KEYLENGTH = 128;  // limited by JCE 
+	private static BASE64Decoder b64Decoder = null;
+	private static BASE64Encoder b64Encoder = null;
 	
 	public static void main(String[] args) throws Exception{
 		String fn = null;
 		String pw = null;
-		String salt = null;
+		StringBuilder salt = new StringBuilder();
 		byte[] iv = null;
 		StringBuilder ivstr = new StringBuilder();
 		if (args.length<2){
-			System.out.println("usage: BlowFish filename pass [salt]");
-			System.out.println("       BlowFish DECRYPTFILE fn pass salt");
+			System.out.println("usage: BlowFish filename pass [salt] ");
+			System.out.println("       BlowFish DECRYPTFILE fn pass ");
 			return;
 		}
 		if (args[0].equals("DECRYPTFILE")){
 			fn = args[1];
 			pw = args[2];
-			salt = "default";
-			if (args.length==4)
-				salt = args[3];
 
 			//decryptFile(fn,  pw,  salt);
 			System.out.println(decryptFile(fn,pw));
@@ -49,10 +48,6 @@ public class BlowFish {
 			fn = args[0];
 			pw = args[1];
 		
-			salt = "default";
-			if (args.length>2)
-				salt = args[2];
-
 			byte[] payload = null;
 			try{
 				payload = Files.readAllBytes(Paths.get(fn));
@@ -71,7 +66,7 @@ public class BlowFish {
 			}
 						
 			ArrayList<String> coded = new ArrayList<String>();
-			coded.add(salt);
+			coded.add(salt.toString());
 			coded.add(ivstr.toString());
 			coded.add(ciphertxt);
 			try{
@@ -102,19 +97,26 @@ public class BlowFish {
 		suspect this and padding are why openssl blowfish encryption does
 		not appear to interwork with java based 
 	*/
-	public static String encrypt(String txt, String pw, String salt, StringBuilder ivstr){
-		byte[] keyData = deriveKey(pw, salt.getBytes(), KEYLENGTH) ;
+	public static String encrypt(String txt, String pw, StringBuilder salt, StringBuilder ivstr){
+		SecureRandom srnd = new SecureRandom();
+		if (salt.length() == 0){
+			salt.append(base64Encode(srnd.generateSeed(16)));
+			System.out.println("setting salt to " + salt);
+		} else {
+			System.out.println("Salt given: " + salt);
+		}
+		byte[] keyData = deriveKey(pw, salt.toString().getBytes(), KEYLENGTH) ;
 		SecretKeySpec secretKeySpec = new SecretKeySpec(keyData, "Blowfish");
 		byte[] ciphertext = null;
 		try{
 			Cipher cipher = Cipher.getInstance("Blowfish/CBC/PKCS5Padding");
-			SecureRandom srnd = new SecureRandom();
 		//	byte[] iv = new byte[cipher.getBlockSize()];
 		//	rnd.nextBytes(iv);
 
 			cipher.init(Cipher.ENCRYPT_MODE, secretKeySpec,srnd);
 			ciphertext = cipher.doFinal(txt.getBytes());
-			ivstr.append(new BASE64Encoder().encode(cipher.getIV()));
+			//ivstr.append(new BASE64Encoder().encode(cipher.getIV()));
+			ivstr.append( base64Encode(cipher.getIV()));
 
 			//System.out.println("iv:" + toHexStr(iv) );
 		} catch ( NoSuchAlgorithmException noSuch ) {
@@ -126,9 +128,10 @@ public class BlowFish {
 		} catch (Exception e) {
 			System.err.println(e.getMessage());
 		}
-		return (new BASE64Encoder().encode(ciphertext));
+		//return (new BASE64Encoder().encode(ciphertext));
+		return (base64Encode(ciphertext));
 	}
-
+/*
 	public static void decryptFile(String fn, String pw, String salt){
 		byte[] ciphertext = null;
 		String ciphertextstr = null;
@@ -155,16 +158,19 @@ public class BlowFish {
 		System.out.println( decrypt(ciphertextstr, pw, salt, ivstr));
 
 	}
-
-	public static String decrypt(String ciphertxt, String pw, String salt, String ivstr) {
-		byte[] keyData = deriveKey(pw, salt.getBytes(), KEYLENGTH) ;
+*/
+	public static String decrypt(String ciphertxt, String pw, StringBuilder salt, String ivstr) {
+		
+		byte[] keyData = deriveKey(pw, salt.toString().getBytes(), KEYLENGTH) ;
 		SecretKeySpec secretKeySpec = new SecretKeySpec(keyData,"Blowfish");
 		byte[] decoded = null;
 		try{
-			byte[] iv = new BASE64Decoder().decodeBuffer(ivstr);
+			//byte[] iv = new BASE64Decoder().decodeBuffer(ivstr);
+			byte[] iv = base64Decode(ivstr);
 			Cipher cipher = Cipher.getInstance("Blowfish/CBC/PKCS5Padding");
 			cipher.init(Cipher.DECRYPT_MODE, secretKeySpec,new IvParameterSpec(iv));
-			decoded = cipher.doFinal(new BASE64Decoder().decodeBuffer(ciphertxt));
+			//decoded = cipher.doFinal(new BASE64Decoder().decodeBuffer(ciphertxt));
+			decoded = cipher.doFinal(base64Decode(ciphertxt));
 		} catch ( NoSuchAlgorithmException noSuch ) {
 			System.err.println("NoSuchAlgorithmException " + noSuch.getMessage());
 		} catch ( InvalidKeyException invKey ) {
@@ -197,6 +203,7 @@ public class BlowFish {
 	}
 
 	public static boolean writeFile(String fn, String contents, boolean overwrite){
+
 		File targ = new File(fn);
 		if (!targ.exists()||overwrite){
 			Path file = targ.toPath();
@@ -207,13 +214,13 @@ public class BlowFish {
 				Files.write(file, contents.getBytes(), 
 					StandardOpenOption.CREATE);	
 			} catch(IOException ioe) {
-				System.err.println("ioe " + ioe.getMessage());
+				System.err.println("io err" + ioe.getMessage());
 				System.err.println(ioe.getCause());
 			} catch(UnsupportedOperationException uoe){
-				System.err.println("uoe " + uoe.getMessage());
+				System.err.println("unsupported operation " + uoe.getMessage());
 
 			} catch(SecurityException sec){
-				System.err.println("sec " + sec.getMessage());
+				System.err.println("security " + sec.getMessage());
 			} catch (Exception e) {
 				System.err.println("could not write to " + fn);
 				System.err.println("file io error: " + e.getMessage());
@@ -257,7 +264,7 @@ public class BlowFish {
 		try{
 			lines =  readFile(fn);
 		} catch (IOException ioe) {
-			System.err.println("Decrypting File Error: " +
+			System.err.println("Decrypting File IO Error: " +
 				ioe.getMessage());
 			return null;
 		} catch (Exception e) {
@@ -277,9 +284,29 @@ public class BlowFish {
 		
 		String plaintext = decrypt( lines.get(2), // ciphertxt, 
 			pw, 
-			lines.get(0),
+			new StringBuilder(lines.get(0)),
 			lines.get(1)); 
 		return plaintext;
+	}
+	
+	public static byte[] base64Decode(String payload){
+		byte[] result = null;
+		if (b64Decoder == null)
+			b64Decoder = new BASE64Decoder();
+		try{
+			result = b64Decoder.decodeBuffer(payload);
+		} catch(IOException ioe) {
+			System.err.println("IO exception " + ioe.getMessage());
+		} catch (Exception e) {
+			System.err.println("Exception " + e.getMessage());
+		}
+		return result;
+	}
+
+	public static String base64Encode(byte[] payload){
+		if (b64Encoder == null)
+			b64Encoder = new BASE64Encoder();
+		return b64Encoder.encode(payload);
 	}
 }
 
